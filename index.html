@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>隨機餐廳拉霸</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  :root{--bg:#0f172a; --panel:#111827; --text:#e5e7eb; --muted:#94a3b8; --accent:#22d3ee; --accent2:#a78bfa; --danger:#ef4444;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+  .wrap{width:420px; max-width:100%; margin:14px auto; padding:12px}
+  .card{background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:12px; box-shadow:0 10px 30px rgba(0,0,0,.28)}
+  .title{font-weight:800; font-size:18px}
+  .muted{color:var(--muted); font-size:12px}
+  input,select,button{background:#0b1220; color:var(--text); border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:8px 10px; outline:none}
+  input:focus,select:focus{border-color:var(--accent)} button{cursor:pointer; font-weight:700}
+  .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .primary{background:linear-gradient(90deg,var(--accent),var(--accent2)); border:none; color:#001018}
+  .ghost{background:#141a26} .danger{background:#2a1111; border-color:#7f1d1d} .small{font-size:12px}
+  .tag{display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 8px; background:#0c1320; border:1px solid rgba(255,255,255,.1); border-radius:999px}
+  .pill{font-size:11px; padding:2px 6px; border-radius:999px; background:#0a111d; border:1px solid rgba(255,255,255,.08); color:var(--muted)}
+  .list{display:grid; grid-template-columns:1fr auto; gap:6px; align-items:center}
+  .divider{height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent); margin:10px 0}
+  .listbox{max-height:220px; overflow:auto; padding-right:4px}
+  .slotbox{width:100%; max-width:400px; height:60px; margin:10px auto 6px; border-radius:12px; border:2px solid rgba(255,255,255,.12); background:linear-gradient(180deg,#0c1423,#0a0f1a); display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative}
+  .slottext{font-size:22px; font-weight:800; white-space:nowrap; text-align:center}
+  .slotmask::before, .slotmask::after{content:""; position:absolute; left:0; right:0; height:12px; pointer-events:none}
+  .slotmask::before{top:0; background:linear-gradient(180deg,rgba(15,23,42,.85),transparent)}
+  .slotmask::after{bottom:0; background:linear-gradient(0deg,rgba(15,23,42,.85),transparent)}
+  .result-fixed{position:fixed; right:16px; bottom:16px; z-index:50; background:#0e1626; border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px 12px; width:min(320px,90vw); box-shadow:0 8px 24px rgba(0,0,0,.35)}
+  .result-title{font-size:12px; color:var(--muted); margin-bottom:4px}
+  .result-text{font-size:20px; font-weight:900}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="title">🎰 隨機餐廳拉霸 <span class="pill">結果固定右下角</span></div>
+      <div class="muted">用「匯入 JSON」載入你的清單（{ "items":[...] }）。</div>
+      <div class="divider"></div>
+
+      <div class="slotbox slotmask"><div id="slotText" class="slottext">—</div></div>
+      <div class="row">
+        <select id="mode"><option value="weighted">加權抽籤</option><option value="pure">純隨機</option></select>
+        <input id="exclude" placeholder="排除分類：例 台式, 速食" style="flex:1;min-width:120px">
+        <button id="btnSpin" class="primary">拉一下 🎲</button>
+        <button id="btnAgain" class="ghost">再拉一次</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="row">
+        <button id="btnImport" class="ghost small">匯入 JSON</button>
+        <button id="btnExport" class="ghost small">匯出 JSON</button>
+        <button id="btnClear" class="danger small">清空清單</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input id="name" placeholder="新增：餐廳名稱" style="flex:2;min-width:160px">
+        <input id="tags" placeholder="分類(逗號)" style="flex:1;min-width:120px">
+        <input id="weight" type="number" min="1" max="10" value="1" style="width:90px">
+        <button id="btnAdd" class="primary">＋新增</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="title" style="font-size:16px">清單</div>
+      <div class="muted small">（點分類可快速填入「排除分類」）</div>
+      <div id="list" class="listbox" style="margin-top:6px"></div>
+    </div>
+  </div>
+
+  <div class="result-fixed">
+    <div class="result-title">今天吃這個：</div>
+    <div id="resultText" class="result-text">—</div>
+  </div>
+
+<script>
+(()=> {
+  const storeKey="restaurant-picker-slot";
+  const $=sel=>document.querySelector(sel);
+  const state={items:[], lastPick:null, spinning:false};
+  const defaults=[
+    {id:"a1", name:"福隆鐵路便當", tags:["便當"], weight:1, disabled:false},
+    {id:"a2", name:"小叮噹Q便當", tags:["便當"], weight:1, disabled:false},
+    {id:"a3", name:"鋒元燒臘", tags:["燒臘"], weight:1, disabled:false},
+    {id:"a4", name:"肯德基", tags:["速食","炸雞"], weight:1, disabled:false},
+  ];
+  const genId=()=>Math.random().toString(36).slice(2,9);
+  const uniq=arr=>[...new Set(arr.map(s=>s.trim()).filter(Boolean))];
+  const escapeHtml=s=>s.replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+
+  function save(){ localStorage.setItem(storeKey, JSON.stringify({items:state.items})); }
+  function load(){ try{ const raw=localStorage.getItem(storeKey); state.items = raw ? (JSON.parse(raw).items||defaults) : defaults; }catch(e){ state.items=defaults; } }
+
+  function buildPool(){
+    const mode=$("#mode").value, exclude=uniq($("#exclude").value.split(","));
+    let list=state.items.filter(it=>!it.disabled);
+    if(exclude.length){ list=list.filter(it=>!(it.tags||[]).some(t=>exclude.includes(t))); }
+    if(list.length===0) return [];
+    if(mode==="pure") return list.slice();
+    const pool=[]; list.forEach(it=>{ const w=Math.max(1,Math.min(50,it.weight||1)); for(let i=0;i<w;i++) pool.push(it); });
+    return pool;
+  }
+
+  function renderList(){
+    const root=$("#list"); root.innerHTML="";
+    if(state.items.length===0){ root.innerHTML=`<div class="muted">目前沒有餐廳，請先匯入或新增。</div>`; return; }
+    const head=document.createElement("div"); head.className="list muted small"; head.innerHTML=`<div>名稱</div><div style="text-align:right">權重 / 操作</div>`; root.appendChild(head);
+    state.items.forEach(it=>{
+      const row=document.createElement("div"); row.className="list";
+      const left=document.createElement("div");
+      const name=document.createElement("div"); name.innerHTML=`<strong ${it.disabled?'style="opacity:.5;text-decoration:line-through"':''}>${escapeHtml(it.name)}</strong>`; left.appendChild(name);
+      const tags=document.createElement("div"); (it.tags||[]).forEach(t=>{ const b=document.createElement("button"); b.className="tag small"; b.textContent=t;
+        b.onclick=()=>{const ex=uniq($("#exclude").value.split(",")); if(ex.includes(t)) $("#exclude").value=ex.filter(x=>x!==t).join(", "); else { ex.push(t); $("#exclude").value=ex.join(", "); }};
+        left.appendChild(b);
+      });
+      const right=document.createElement("div"); right.style.textAlign="right";
+      const w=document.createElement("span"); w.className="pill"; w.textContent="x"+(it.weight||1);
+      const up=document.createElement("button"); up.className="ghost small"; up.textContent="＋"; up.title="權重 +1"; up.onclick=()=>{ it.weight=Math.min(10,(it.weight||1)+1); save(); renderList(); };
+      const down=document.createElement("button"); down.className="ghost small"; down.textContent="－"; down.title="權重 -1"; down.onclick=()=>{ it.weight=Math.max(1,(it.weight||1)-1); save(); renderList(); };
+      const toggle=document.createElement("button"); toggle.className="ghost small"; toggle.textContent=it.disabled?"恢復":"排除"; toggle.onclick=()=>{ it.disabled=!it.disabled; save(); renderList(); };
+      const del=document.createElement("button"); del.className="danger small"; del.textContent="刪除"; del.onclick=()=>{ state.items=state.items.filter(x=>x.id!==it.id); save(); renderList(); };
+      right.append(w, up, down, toggle, del);
+      row.append(left, right); root.appendChild(row);
+    });
+  }
+
+  let spinTimer=null;
+  function spinOnce(){
+    const pool=buildPool();
+    if(pool.length===0){ $("#slotText").textContent="（沒有可抽的店家）"; $("#resultText").textContent="—"; return; }
+    if(state.spinning) return; state.spinning=true;
+    const slot=$("#slotText"), result=$("#resultText");
+    let step=35, elapsed=0, idx=Math.floor(Math.random()*pool.length);
+    const total=1800+Math.random()*900;
+    slot.textContent="開始！";
+    clearInterval(spinTimer);
+    spinTimer=setInterval(()=>{
+      elapsed+=step;
+      idx=(idx+1+Math.floor(Math.random()*2))%pool.length;
+      slot.textContent=pool[idx].name;
+      step=Math.min(140, step*1.06);
+      if(elapsed>=total){
+        clearInterval(spinTimer);
+        const pick=pool[idx]; state.lastPick=pick;
+        slot.textContent=pick.name; result.textContent="👉 "+pick.name;
+        state.spinning=false;
+      }
+    }, step);
+  }
+
+  $("#btnSpin").onclick=spinOnce; $("#btnAgain").onclick=spinOnce;
+
+  $("#btnAdd").onclick=()=>{
+    const name=$("#name").value.trim(); if(!name) return;
+    const tags=uniq($("#tags").value.split(",")); const weight=Math.max(1,Math.min(10,parseInt($("#weight").value)||1));
+    state.items.push({id:genId(), name, tags, weight, disabled:false});
+    $("#name").value=""; $("#tags").value=""; $("#weight").value="1";
+    save(); renderList();
+  };
+
+  $("#btnClear").onclick=()=>{ if(confirm("確定要清空清單？")){ state.items=[]; save(); renderList(); $("#slotText").textContent="—"; $("#resultText").textContent="—"; } };
+
+  $("#btnExport").onclick=()=>{
+    const data=JSON.stringify({items:state.items}, null, 2);
+    if(navigator.clipboard && window.isSecureContext){
+      navigator.clipboard.writeText(data).then(()=>alert("已複製到剪貼簿！")).catch(()=>openText(data));
+    }else openText(data);
+    function openText(text){
+      const w=window.open("", "_blank"); if(!w){ alert("請允許開啟新視窗"); return; }
+      w.document.write("<pre style='white-space:pre-wrap;padding:12px;background:#0f172a;color:#e5e7eb;'>"+text.replace(/</g,"&lt;")+"</pre>");
+      w.document.close();
+    }
+  };
+
+  $("#btnImport").onclick=()=>{
+    const input=document.createElement("input");
+    input.type="file"; input.accept="application/json";
+    input.onchange=(e)=>{
+      const file=e.target.files[0]; if(!file) return;
+      const reader=new FileReader();
+      reader.onload=()=>{
+        try{
+          const json=JSON.parse(reader.result);
+          if(Array.isArray(json.items)){
+            state.items=json.items.map(x=>({id:x.id||genId(), name:x.name||"", tags:Array.isArray(x.tags)?x.tags:[], weight:x.weight||1, disabled:!!x.disabled}));
+            save(); renderList(); $("#slotText").textContent="匯入完成，拉看看吧！";
+          }else alert("JSON 格式錯誤：需要 { items: [...] }");
+        }catch(err){ alert("解析失敗："+err.message); }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
+  ["#name","#tags","#weight"].forEach(sel=>{ document.querySelector(sel).addEventListener("keydown", e=>{ if(e.key==="Enter") $("#btnAdd").click(); }); });
+
+  if("serviceWorker" in navigator){ window.addEventListener("load", ()=>{ navigator.serviceWorker.register("service-worker.js"); }); }
+
+  load(); renderList();
+})();
+</script>
+</body>
+</html>
