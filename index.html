@@ -148,31 +148,57 @@
     });
   }
 
-  let spinTimer=null;
-  function spinOnce(){
-    const pool=buildPool();
-    if(pool.length===0){ $("#slotText").textContent="（沒有可抽的店家）"; $("#resultText").textContent="—"; return; }
-    if(state.spinning) return; state.spinning=true;
-    const slot=$("#slotText"), result=$("#resultText");
-    let step=35, elapsed=0, idx=Math.floor(Math.random()*pool.length);
-    const total=1800+Math.random()*900;
-    slot.textContent="開始！";
-    clearInterval(spinTimer);
-    spinTimer=setInterval(()=>{
-      elapsed+=step;
-      idx=(idx+1+Math.floor(Math.random()*2))%pool.length;
-      slot.textContent=pool[idx].name;
-      step=Math.min(140, step*1.06);
-      if(elapsed>=total){
-        clearInterval(spinTimer);
-        const pick=pool[idx]; state.lastPick=pick;
-        slot.textContent=pick.name; result.textContent="👉 "+pick.name;
-        state.spinning=false;
-      }
-    }, step);
-  }
+ <script>
+let spinTimer = null;
 
-  $("#btnSpin").onclick=spinOnce; $("#btnAgain").onclick=spinOnce;
+function spinOnce(){
+  const pool = buildPool();
+  const slot = document.getElementById("slotText");
+  const resultEl = document.getElementById("resultText"); // 可能不存在（你註解掉了）
+
+  if (pool.length === 0) {
+    if (slot) slot.textContent = "（沒有可抽的店家）";
+    if (resultEl) resultEl.textContent = "—";
+    return;
+  }
+  if (state.spinning) return;
+  state.spinning = true;
+
+  let step = 35, elapsed = 0, idx = Math.floor(Math.random() * pool.length);
+  const total = 1800 + Math.random() * 900;
+
+  if (slot) slot.textContent = "開始！";
+  clearInterval(spinTimer);
+
+  // 用 setInterval 轉動；任何錯誤都會解鎖
+  spinTimer = setInterval(() => {
+    try {
+      elapsed += step;
+      idx = (idx + 1 + Math.floor(Math.random() * 2)) % pool.length;
+      if (slot) slot.textContent = pool[idx].name;
+      step = Math.min(140, step * 1.06);
+
+      if (elapsed >= total) {
+        clearInterval(spinTimer);
+        const pick = pool[idx];
+        state.lastPick = pick;
+        if (slot) slot.textContent = pick.name;
+        if (resultEl) resultEl.textContent = "👉 " + pick.name;
+        state.spinning = false; // 解鎖，才能再拉一次
+      }
+    } catch (e) {
+      clearInterval(spinTimer);
+      state.spinning = false;   // 發生錯誤也解鎖
+      console.error(e);
+    }
+  }, step);
+}
+
+// 綁定按鈕
+document.getElementById("btnSpin").onclick = spinOnce;
+document.getElementById("btnAgain").onclick = spinOnce;
+</script>
+
 
   $("#btnAdd").onclick=()=>{
     const name=$("#name").value.trim(); if(!name) return;
@@ -226,6 +252,7 @@
 </body>
 </html>
 <!-- bump -->
+
 
 
 
