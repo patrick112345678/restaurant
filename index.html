@@ -26,7 +26,25 @@
   .pill{font-size:11px; padding:2px 6px; border-radius:999px; background:#0a111d; border:1px solid rgba(255,255,255,.08); color:var(--muted)}
   .list{display:grid; grid-template-columns:1fr auto; gap:6px; align-items:center}
   .divider{height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent); margin:10px 0}
-  .listbox{max-height:220px; overflow:auto; padding-right:4px}
+  .listbox{
+  max-height:60svh;              /* 手機高度最大佔 60% 視窗 */
+  overflow-y:auto;
+  -webkit-overflow-scrolling: touch; /* iOS Safari 慣性滑動 */
+  padding-right:4px;
+}
+
+/* 顯示較細的捲動條（手機/電腦都會比較好看） */
+.listbox::-webkit-scrollbar {
+  width: 6px;
+}
+.listbox::-webkit-scrollbar-track {
+  background: transparent;
+}
+.listbox::-webkit-scrollbar-thumb {
+  background-color: rgba(255,255,255,0.3);
+  border-radius: 3px;
+}
+
   .slotbox{width:100%; max-width:400px; height:60px; margin:10px auto 6px; border-radius:12px; border:2px solid rgba(255,255,255,.12); background:linear-gradient(180deg,#0c1423,#0a0f1a); display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative}
   .slottext{font-size:22px; font-weight:800; white-space:nowrap; text-align:center}
   .slotmask::before, .slotmask::after{content:""; position:absolute; left:0; right:0; height:12px; pointer-events:none}
@@ -208,3 +226,4 @@
 </body>
 </html>
 <!-- bump -->
+
