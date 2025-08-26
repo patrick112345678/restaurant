@@ -63,7 +63,7 @@
           <option value="3">記憶 4</option>
           <option value="4">記憶 5</option>
         </select>
-        <input id="profileName" placeholder="這組的名稱，例如：新店家" style="flex:1;min-width:140px">
+        <input id="profileName" placeholder="這組的名稱，例如：五股公司" style="flex:1;min-width:140px">
         <button id="btnRename" class="ok small">更名</button>
         <span class="pill" id="profileHint"></span>
       </div>
@@ -129,7 +129,10 @@
     {id:"a4", name:"肯德基", tags:["速食","炸雞"], weight:1, disabled:false},
   ];
 
-  function cur(){ return state.profiles[state.active]; }
+  const genId=()=>Math.random().toString(36).slice(2,9);
+  const uniq=arr=>[...new Set(arr.map(s=>s.trim()).filter(Boolean))];
+  const escapeHtml=s=>s.replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+  const cur=()=>state.profiles[state.active];
 
   // ===== 儲存 / 載入 =====
   function save(){ localStorage.setItem(storeKey, JSON.stringify(state)); }
@@ -143,20 +146,15 @@
             name: p.name || `記憶 ${i+1}`,
             items: Array.isArray(p.items) ? p.items : []
           }));
-          state.active = Math.min(4, Math.max(0, parsed.active||0));
+          state.active=Math.min(4, Math.max(0, parsed.active||0));
         }
       }else{
-        // 預設給第一組一些資料，其他空白
-        state.profiles[0].items = defaults;
+        state.profiles[0].items=defaults;
       }
     }catch(e){
-      state.profiles[0].items = defaults;
+      state.profiles[0].items=defaults;
     }
   }
-
-  const genId=()=>Math.random().toString(36).slice(2,9);
-  const uniq=arr=>[...new Set(arr.map(s=>s.trim()).filter(Boolean))];
-  const escapeHtml=s=>s.replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
 
   function buildPool(){
     const mode=$("#mode").value, exclude=uniq($("#exclude").value.split(","));
@@ -169,9 +167,14 @@
   }
 
   function renderProfilesUI(){
+    // 更新下拉文字
+    state.profiles.forEach((p,i)=>{
+      const opt=$("#profileSelect").querySelector(`option[value="${i}"]`);
+      if(opt) opt.textContent = p.name || `記憶 ${i+1}`;
+    });
     $("#profileSelect").value=String(state.active);
     $("#profileName").value=state.profiles[state.active].name||`記憶 ${state.active+1}`;
-    $("#profileHint").textContent = `目前：${state.profiles[state.active].name}`;
+    $("#profileHint").textContent=`目前：${state.profiles[state.active].name}`;
   }
 
   function renderList(){
@@ -255,7 +258,7 @@
     }
   }
 
-  // ===== 匯入 / 匯出（可指定記憶組） =====
+  // ===== 匯入 / 匯出 =====
   function exportJson(obj, filename){
     const data=JSON.stringify(obj, null, 2);
     if(navigator.clipboard && window.isSecureContext){
@@ -282,9 +285,19 @@
   document.getElementById("btnSpin").onclick=spinOnce;
   document.getElementById("btnAgain").onclick=spinOnce;
 
-  // 記憶組切換 / 更名
+  // 記憶組切換
   $("#profileSelect").onchange=(e)=>{ state.active=Number(e.target.value||0); save(); renderProfilesUI(); renderList(); };
-  $("#btnRename").onclick=()=>{ const v=$("#profileName").value.trim(); if(!v) return; state.profiles[state.active].name=v; save(); renderProfilesUI(); };
+
+  // ✅ 記憶組更名（同步更新下拉選單 option 文字）
+  document.getElementById("btnRename").onclick=()=>{
+    const v=$("#profileName").value.trim();
+    if(!v) return;
+    state.profiles[state.active].name=v;
+    const opt=$("#profileSelect").querySelector(`option[value="${state.active}"]`);
+    if(opt) opt.textContent=v;     // 這行就是關鍵：即時更新 option 顯示文字
+    save();
+    renderProfilesUI();
+  };
 
   // 新增 / 清空
   document.getElementById("btnAdd").onclick=()=>{
@@ -338,7 +351,6 @@
               const map = new Map(existing.map(x=>[x.name, x]));
               imported.forEach(x=>{
                 if(map.has(x.name)){
-                  // 若已存在，更新 tags/weight（可依需求調整）
                   const o = map.get(x.name);
                   const tags = Array.from(new Set([...(o.tags||[]), ...(x.tags||[])]));
                   map.set(x.name, {...o, tags, weight: x.weight || o.weight || 1, disabled: !!x.disabled});
@@ -384,11 +396,6 @@
 
   // 初始化
   load();
-  // 把下拉選單顯示成已儲存名稱
-  state.profiles.forEach((p,i)=>{
-    const opt = $("#profileSelect").querySelector(`option[value="${i}"]`);
-    if(opt) opt.textContent = p.name || `記憶 ${i+1}`;
-  });
   renderProfilesUI();
   renderList();
 })();
