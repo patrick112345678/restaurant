@@ -170,7 +170,6 @@
     });
     $("#profileSelect").value=String(state.active);
     $("#profileName").value=state.profiles[state.active].name||`記憶 ${state.active+1}`;
-    $("#profileHint").textContent=`目前：${state.profiles[state.active].name}`;
   }
 
   function renderList(){
@@ -357,3 +356,4 @@
 </script>
 </body>
 </html>
+
