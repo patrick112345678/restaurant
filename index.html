@@ -76,7 +76,6 @@
         <select id="mode"><option value="weighted">加權抽籤</option><option value="pure">純隨機</option></select>
         <input id="exclude" placeholder="排除分類：例 台式, 速食" style="flex:1;min-width:120px">
         <button id="btnSpin" class="primary">拉一下 🎲</button>
-        <button id="btnAgain" class="ghost">再拉一次</button>
       </div>
 
       <div class="divider"></div>
@@ -109,7 +108,6 @@
   const storeKey="restaurant-picker-profiles-v1";
   const $=sel=>document.querySelector(sel);
 
-  // ===== 狀態：5 組記憶 =====
   const state={
     active:0,
     spinning:false,
@@ -134,7 +132,6 @@
   const escapeHtml=s=>s.replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
   const cur=()=>state.profiles[state.active];
 
-  // ===== 儲存 / 載入 =====
   function save(){ localStorage.setItem(storeKey, JSON.stringify(state)); }
   function load(){
     try{
@@ -167,7 +164,6 @@
   }
 
   function renderProfilesUI(){
-    // 更新下拉文字
     state.profiles.forEach((p,i)=>{
       const opt=$("#profileSelect").querySelector(`option[value="${i}"]`);
       if(opt) opt.textContent = p.name || `記憶 ${i+1}`;
@@ -181,7 +177,6 @@
     const root=$("#list"); root.innerHTML="";
     const items=cur().items;
     if(items.length===0){ root.innerHTML=`<div class="muted">這組目前沒有餐廳，請先匯入或新增。</div>`; return; }
-
     const head=document.createElement("div");
     head.className="list muted small";
     head.innerHTML=`<div>名稱</div><div style="text-align:right">權重 / 操作</div>`;
@@ -189,7 +184,6 @@
 
     items.forEach(it=>{
       const row=document.createElement("div"); row.className="list";
-
       const left=document.createElement("div");
       const name=document.createElement("div");
       name.innerHTML=`<strong ${it.disabled?'style="opacity:.5;text-decoration:line-through"':''}>${escapeHtml(it.name)}</strong>`;
@@ -205,26 +199,21 @@
 
       const right=document.createElement("div"); right.style.textAlign="right";
       const w=document.createElement("span"); w.className="pill"; w.textContent="x"+(it.weight||1);
-
       const up=document.createElement("button"); up.className="ghost small"; up.textContent="＋";
-      up.title="權重 +1"; up.onclick=()=>{ it.weight=Math.min(10,(it.weight||1)+1); save(); renderList(); };
-
+      up.onclick=()=>{ it.weight=Math.min(10,(it.weight||1)+1); save(); renderList(); };
       const down=document.createElement("button"); down.className="ghost small"; down.textContent="－";
-      down.title="權重 -1"; down.onclick=()=>{ it.weight=Math.max(1,(it.weight||1)-1); save(); renderList(); };
-
+      down.onclick=()=>{ it.weight=Math.max(1,(it.weight||1)-1); save(); renderList(); };
       const toggle=document.createElement("button"); toggle.className="ghost small"; toggle.textContent=it.disabled?"恢復":"排除";
       toggle.onclick=()=>{ it.disabled=!it.disabled; save(); renderList(); };
-
       const del=document.createElement("button"); del.className="danger small"; del.textContent="刪除";
-      del.onclick=()=>{ cur().items = cur().items.filter(x=>x.id!==it.id); save(); renderList(); };
-
+      del.onclick=()=>{ cur().items=cur().items.filter(x=>x.id!==it.id); save(); renderList(); };
       right.append(w, up, down, toggle, del);
       row.append(left, right);
       root.appendChild(row);
     });
   }
 
-  // ===== 拉霸（只更新 slotText） =====
+  // ===== 拉霸 =====
   let spinTimer=null;
   function spinOnce(){
     const pool=buildPool();
@@ -232,22 +221,20 @@
     if(!pool.length){ if(slot) slot.textContent="（沒有可抽的店家）"; return; }
     if(state.spinning) return;
     state.spinning=true;
-
     let step=35, elapsed=0, idx=Math.floor(Math.random()*pool.length);
     const total=1800+Math.random()*900;
-    if (slot) slot.textContent="開始！";
+    if(slot) slot.textContent="開始！";
     clearInterval(spinTimer);
-
     try{
       spinTimer=setInterval(()=>{
         elapsed+=step;
         idx=(idx+1+Math.floor(Math.random()*2))%pool.length;
-        if (slot) slot.textContent=pool[idx].name;
+        if(slot) slot.textContent=pool[idx].name;
         step=Math.min(140, step*1.06);
-        if (elapsed>=total){
+        if(elapsed>=total){
           clearInterval(spinTimer);
           const pick=pool[idx];
-          if (slot) slot.textContent=pick.name;
+          if(slot) slot.textContent=pick.name;
           state.spinning=false;
         }
       }, step);
@@ -258,43 +245,19 @@
     }
   }
 
-  // ===== 匯入 / 匯出 =====
-  function exportJson(obj, filename){
-    const data=JSON.stringify(obj, null, 2);
-    if(navigator.clipboard && window.isSecureContext){
-      navigator.clipboard.writeText(data).then(()=>alert(`已複製到剪貼簿：${filename}`)).catch(()=>openText(data));
-    }else openText(data);
-    function openText(text){
-      const w=window.open("", "_blank"); if(!w){ alert("請允許開啟新視窗"); return; }
-      w.document.write("<pre style='white-space:pre-wrap;padding:12px;background:#0f172a;color:#e5e7eb;'>"+text.replace(/</g,"&lt;")+"</pre>");
-      w.document.close();
-    }
-  }
-
-  function normalizeItems(list){
-    return (list||[]).map(x=>({
-      id: x.id || genId(),
-      name: x.name || "",
-      tags: Array.isArray(x.tags) ? x.tags : [],
-      weight: x.weight || 1,
-      disabled: !!x.disabled
-    })).filter(x=>x.name.trim().length>0);
-  }
-
-  // ===== 綁定事件 =====
+  // 綁定
   document.getElementById("btnSpin").onclick=spinOnce;
-  document.getElementById("btnAgain").onclick=spinOnce;
 
   // 記憶組切換
   $("#profileSelect").onchange=(e)=>{ state.active=Number(e.target.value||0); save(); renderProfilesUI(); renderList(); };
 
-  // ✅ 記憶組更名（同步更新下拉選單 option 文字）
+  // 更名
   document.getElementById("btnRename").onclick=()=>{
     const v=$("#profileName").value.trim();
     if(!v) return;
     state.profiles[state.active].name=v;
     const opt=$("#profileSelect").querySelector(`option[value="${state.active}"]`);
-    if(opt) opt.textContent=v;     // 這行就是關鍵：即時更新 option 顯示文字
+    if(opt) opt.textContent=v;
     save();
     renderProfilesUI();
   };
@@ -312,15 +275,37 @@
   document.getElementById("btnClear").onclick=()=>{
     if(confirm(`確定清空「${cur().name||"這組"}」的清單？`)){
       cur().items=[]; save(); renderList();
-      const slot=document.getElementById("slotText"); if (slot) slot.textContent="—";
+      const slot=document.getElementById("slotText"); if(slot) slot.textContent="—";
     }
   };
 
-  // 匯出：當前記憶 / 全部
+  // 匯出
+  function exportJson(obj, filename){
+    const data=JSON.stringify(obj, null, 2);
+    if(navigator.clipboard && window.isSecureContext){
+      navigator.clipboard.writeText(data).then(()=>alert(`已複製到剪貼簿：${filename}`)).catch(()=>openText(data));
+    }else openText(data);
+    function openText(text){
+      const w=window.open("", "_blank"); if(!w){ alert("請允許開啟新視窗"); return; }
+      w.document.write("<pre style='white-space:pre-wrap;padding:12px;background:#0f172a;color:#e5e7eb;'>"+text.replace(/</g,"&lt;")+"</pre>");
+      w.document.close();
+    }
+  }
+
   document.getElementById("btnExport").onclick=()=>exportJson({items:cur().items}, `${state.profiles[state.active].name||"profile"}.json`);
   document.getElementById("btnExportAll").onclick=()=>exportJson({active:state.active, profiles:state.profiles}, "all-profiles.json");
 
-  // 匯入（可指定要套到哪一組、取代或合併）
+  // 匯入
+  function normalizeItems(list){
+    return (list||[]).map(x=>({
+      id:x.id||genId(),
+      name:x.name||"",
+      tags:Array.isArray(x.tags)?x.tags:[],
+      weight:x.weight||1,
+      disabled:!!x.disabled
+    })).filter(x=>x.name.trim().length>0);
+  }
+
   document.getElementById("btnImport").onclick=()=>{
     const input=document.createElement("input");
     input.type="file"; input.accept="application/json";
@@ -330,58 +315,34 @@
       reader.onload=()=>{
         try{
           const json=JSON.parse(reader.result);
-
-          // 1) 決定要匯入到哪一組
-          const ask = prompt(`要匯入到第幾組記憶？\n輸入 1~5；留空=目前這一組（${state.active+1}：${cur().name||("記憶 "+(state.active+1))}）`);
-          let targetIdx = state.active;
-          if(ask && /^[1-5]$/.test(ask)) targetIdx = Number(ask)-1;
-
-          // 2) 判斷匯入內容格式
+          const ask=prompt(`要匯入到第幾組記憶？輸入 1~5；留空=目前這組（${state.active+1}：${cur().name}）`);
+          let targetIdx=state.active;
+          if(ask && /^[1-5]$/.test(ask)) targetIdx=Number(ask)-1;
           if(Array.isArray(json.items)){
-            // 單一清單
-            const imported = normalizeItems(json.items);
-
-            // 3) 取代 or 合併
-            const replace = confirm(`要用匯入資料「取代」記憶 ${targetIdx+1}（${state.profiles[targetIdx].name}）嗎？\n按「取消」則改為「合併」。`);
+            const imported=normalizeItems(json.items);
+            const replace=confirm(`要用匯入資料取代記憶 ${targetIdx+1}（${state.profiles[targetIdx].name}）嗎？取消=合併`);
             if(replace){
-              state.profiles[targetIdx].items = imported;
+              state.profiles[targetIdx].items=imported;
             }else{
-              // 合併（以 name 為 key 去重）
-              const existing = state.profiles[targetIdx].items.slice();
-              const map = new Map(existing.map(x=>[x.name, x]));
+              const existing=state.profiles[targetIdx].items.slice();
+              const map=new Map(existing.map(x=>[x.name,x]));
               imported.forEach(x=>{
                 if(map.has(x.name)){
-                  const o = map.get(x.name);
-                  const tags = Array.from(new Set([...(o.tags||[]), ...(x.tags||[])]));
-                  map.set(x.name, {...o, tags, weight: x.weight || o.weight || 1, disabled: !!x.disabled});
-                }else{
-                  map.set(x.name, x);
-                }
+                  const o=map.get(x.name);
+                  const tags=Array.from(new Set([...(o.tags||[]),...(x.tags||[])]));
+                  map.set(x.name,{...o,tags,weight:x.weight||o.weight||1,disabled:!!x.disabled});
+                }else map.set(x.name,x);
               });
-              state.profiles[targetIdx].items = Array.from(map.values());
+              state.profiles[targetIdx].items=Array.from(map.values());
             }
-
             save(); renderProfilesUI(); if(targetIdx===state.active) renderList();
-            const slot=document.getElementById("slotText");
-            if (slot) slot.textContent=`已匯入到「${state.profiles[targetIdx].name}」`;
-          }
-          else if (Array.isArray(json.profiles) && json.profiles.length===5){
-            // 全部記憶（完整備份）格式
-            const newProfiles = json.profiles.map((p,i)=>({
-              name: p.name || `記憶 ${i+1}`,
-              items: normalizeItems(p.items)
-            }));
-            const replaceAll = confirm("偵測到 5 組完整備份，要「取代」你的全部記憶嗎？（取消=只匯入到目前這一組）");
-            if(replaceAll){
-              state.profiles = newProfiles;
-            }else{
-              state.profiles[state.active].items = newProfiles[state.active].items;
-            }
+            document.getElementById("slotText").textContent=`已匯入到「${state.profiles[targetIdx].name}」`;
+          }else if(Array.isArray(json.profiles) && json.profiles.length===5){
+            const newProfiles=json.profiles.map((p,i)=>({name:p.name||`記憶 ${i+1}`,items:normalizeItems(p.items)}));
+            const replaceAll=confirm("偵測到 5 組完整備份，要取代全部嗎？取消=只匯入到目前這一組");
+            if(replaceAll){ state.profiles=newProfiles; } else { state.profiles[state.active].items=newProfiles[state.active].items; }
             save(); renderProfilesUI(); renderList();
-          }
-          else{
-            alert("JSON 格式錯誤：需 { items:[...] } 或 { profiles:[...5組...] }");
-          }
+          }else alert("JSON 格式錯誤");
         }catch(err){ alert("解析失敗："+err.message); }
       };
       reader.readAsText(file);
@@ -389,15 +350,9 @@
     input.click();
   };
 
-  // Service Worker（PWA）
-  if("serviceWorker" in navigator){
-    window.addEventListener("load", ()=>{ navigator.serviceWorker.register("service-worker.js"); });
-  }
+  if("serviceWorker" in navigator){ window.addEventListener("load",()=>{ navigator.serviceWorker.register("service-worker.js"); }); }
 
-  // 初始化
-  load();
-  renderProfilesUI();
-  renderList();
+  load(); renderProfilesUI(); renderList();
 })();
 </script>
 </body>
